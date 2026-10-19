@@ -1,0 +1,71 @@
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+  background: #c9aa90;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+#hud {
+  position: fixed;
+  left: 16px;
+  bottom: 14px;
+  color: #f6f2ea;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  user-select: none;
+}
+
+.readout {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 148px;
+  line-height: 1.35;
+}
+
+.readout span,
+.readout em {
+  opacity: 0.72;
+  font-style: normal;
+  font-size: 11px;
+  width: 2.4em;
+}
+
+.readout strong {
+  font-size: 18px;
+  font-weight: 600;
+  min-width: 4.2ch;
+  text-align: right;
+}
+
+.throttle {
+  margin-top: 7px;
+  width: 132px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+#hud-thr {
+  height: 100%;
+  width: 0;
+  background: #f0d2ad;
+}
+
+.hint {
+  margin: 8px 0 0;
+  max-width: 280px;
+  opacity: 0.72;
+  font-size: 11px;
+  line-height: 1.4;
+}
