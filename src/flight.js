@@ -39,7 +39,8 @@ export function headingDegrees(yaw) {
  * when the wings are slow or steeply banked.
  */
 export class FlightModel {
-  constructor() {
+  constructor(groundHeight = null) {
+    this.groundHeight = typeof groundHeight === 'function' ? groundHeight : null;
     this.position = new THREE.Vector3(0, 320, 0);
     this.velocity = new THREE.Vector3(0, 0, -V_REF);
     this.forward = new THREE.Vector3(0, 0, -1);
@@ -76,8 +77,12 @@ export class FlightModel {
     this.yaw -= Math.tan(bank) * G / turnSpeed * dt;
     this.yaw = Math.atan2(Math.sin(this.yaw), Math.cos(this.yaw));
 
-    if (input.throttleUp) this.throttle = Math.min(1, this.throttle + THROTTLE_RATE * dt);
-    if (input.throttleDown) this.throttle = Math.max(0, this.throttle - THROTTLE_RATE * dt);
+    if (typeof input.throttleHold === 'number' && Number.isFinite(input.throttleHold)) {
+      this.throttle = clamp(input.throttleHold, 0, 1);
+    } else {
+      if (input.throttleUp) this.throttle = Math.min(1, this.throttle + THROTTLE_RATE * dt);
+      if (input.throttleDown) this.throttle = Math.max(0, this.throttle - THROTTLE_RATE * dt);
+    }
 
     this._euler.set(this.pitch, this.yaw, -this.roll);
     this.quaternion.setFromEuler(this._euler);
@@ -121,8 +126,9 @@ export class FlightModel {
     this.velocity.copy(this.forward).multiplyScalar(this.airspeed).add(this._perpVel);
     this.position.addScaledVector(this.velocity, dt);
 
-    if (this.position.y < FLOOR_Y) {
-      this.position.y = FLOOR_Y;
+    const floor = this.surfaceFloor();
+    if (this.position.y < floor) {
+      this.position.y = floor;
       if (this.velocity.y < 0) this.velocity.y = 0;
       if (this._perpVel.y < 0) this._perpVel.y = 0;
       this.airspeed = Math.max(0, this.airspeed - 14 * dt);
@@ -131,5 +137,17 @@ export class FlightModel {
       this.position.y = CEILING_Y;
       if (this.velocity.y > 0) this.velocity.y = 0;
     }
+  }
+
+  surfaceFloor() {
+    if (!this.groundHeight) return FLOOR_Y;
+    const x = this.position.x;
+    const z = this.position.z;
+    const here = this.groundHeight(x, z);
+    const ahead = this.groundHeight(x + this.velocity.x * 0.12, z + this.velocity.z * 0.12);
+    const terrain = Number.isFinite(here) ? here : 0;
+    const next = Number.isFinite(ahead) ? ahead : 0;
+    const highest = terrain > next ? terrain : next;
+    return highest > 0.35 ? highest + 6 : FLOOR_Y;
   }
 }

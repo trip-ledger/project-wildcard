@@ -4,8 +4,10 @@ import { FlightModel } from './flight.js';
 import { createHud } from './hud.js';
 import { createInput } from './input.js';
 import { createJet } from './jet.js';
+import { createClouds, updateClouds } from './clouds.js';
 import { createOcean } from './ocean.js';
 import { createSky, updateSky } from './sky.js';
+import { createTerrain } from './terrain.js';
 
 const FOG_COLOR = new THREE.Color(0xd2b39a);
 const FOG_DENSITY = 0.00028;
@@ -32,6 +34,13 @@ ocean.mesh.renderOrder = 0;
 scene.add(ocean.mesh);
 ocean.material.uniforms.sunDirection.value.copy(sky.sunDirection);
 
+const terrain = createTerrain();
+scene.add(terrain.mesh);
+
+const clouds = createClouds(FOG_COLOR, FOG_DENSITY);
+clouds.material.uniforms.sunDirection.value.copy(sky.sunDirection);
+scene.add(clouds.mesh);
+
 scene.add(new THREE.HemisphereLight(0xf3c7a2, 0x1a3d4e, 0.9));
 scene.add(new THREE.AmbientLight(0xfff2e6, 0.34));
 
@@ -43,7 +52,7 @@ scene.add(sunLight.target);
 const jet = createJet();
 scene.add(jet);
 
-const flight = new FlightModel();
+const flight = new FlightModel(terrain.heightAt);
 const chase = createChaseCamera(window.innerWidth / Math.max(window.innerHeight, 1));
 const input = createInput();
 const hud = createHud();
@@ -104,6 +113,12 @@ function frame(now) {
   jet.quaternion.copy(flight.quaternion);
 
   updateChaseCamera(chase, flight, dt);
+  const camera = chase.camera.position;
+  const cameraFloor = Math.max(1.2, terrain.heightAt(camera.x, camera.z) + 2.2);
+  if (camera.y < cameraFloor) {
+    camera.y = cameraFloor;
+    chase.camera.lookAt(chase.lookCurrent);
+  }
   updateSky(sky, chase.camera);
 
   ocean.mesh.position.x = flight.position.x;
@@ -111,7 +126,9 @@ function frame(now) {
   ocean.material.uniforms.time.value = now * 0.001;
 
   sky.material.uniforms.time.value = now * 0.001;
+  updateClouds(clouds, chase.camera, now * 0.001);
 
+  input.syncThrottle(flight.throttle);
   hud.update(flight);
   renderer.render(scene, chase.camera);
   considerResolution(elapsed);
