@@ -1,11 +1,15 @@
 import * as THREE from 'three';
+import { createAudio } from './audio.js';
 import { createChaseCamera, updateChaseCamera } from './camera.js';
+import { createClouds, updateClouds } from './clouds.js';
 import { FlightModel } from './flight.js';
+import { createGates, updateGates } from './gates.js';
 import { createHud } from './hud.js';
 import { createInput } from './input.js';
 import { createJet } from './jet.js';
-import { createClouds, updateClouds } from './clouds.js';
 import { createOcean } from './ocean.js';
+import { buildRoute, localDateKey } from './route.js';
+import { createSession } from './session.js';
 import { createSky, updateSky } from './sky.js';
 import { createTerrain } from './terrain.js';
 
@@ -52,10 +56,34 @@ scene.add(sunLight.target);
 const jet = createJet();
 scene.add(jet);
 
+const params = new URLSearchParams(location.search);
+const dateParam = params.get('date');
+const dateKey = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+  ? dateParam
+  : localDateKey(new Date());
+const route = buildRoute(dateKey, terrain.heightAt);
+const gates = createGates(route);
+scene.add(gates.group);
+
 const flight = new FlightModel(terrain.heightAt);
+const prevPosition = new THREE.Vector3().copy(flight.position);
 const chase = createChaseCamera(window.innerWidth / Math.max(window.innerHeight, 1));
 const input = createInput();
-const hud = createHud();
+const session = createSession(route);
+const audio = createAudio((muted) => hud.setMuted(muted));
+const hud = createHud({
+  onFlyAgain: flyAgain,
+  onToggleMute: () => hud.setMuted(audio.toggle()),
+});
+
+function flyAgain() {
+  flight.reset();
+  session.reset();
+  prevPosition.copy(flight.position);
+  chase.ready = false;
+  hud.hideResults();
+  renderer.domElement.focus();
+}
 
 renderer.domElement.addEventListener('pointerdown', () => {
   renderer.domElement.focus();
@@ -97,6 +125,47 @@ function considerResolution(elapsed) {
 window.addEventListener('resize', resize);
 resize();
 
+jet.position.copy(flight.position);
+jet.quaternion.copy(flight.quaternion);
+updateChaseCamera(chase, flight, 1);
+
+if (params.get('complete') === '1') {
+  hud.showResults(session.debugFinish());
+  updateGates(gates, session, performance.now());
+}
+
+if (params.get('debug') === '1' || params.get('complete') === '1') {
+  window.__debug = () => ({
+    route: {
+      date: route.date,
+      seed: route.seed,
+      seedHex: route.seedHex,
+      gates: route.gates.map((gate) => ({
+        x: gate.x,
+        y: gate.y,
+        z: gate.z,
+        ax: gate.ax,
+        ay: gate.ay,
+        az: gate.az,
+        radius: gate.radius,
+        finish: gate.finish,
+      })),
+    },
+    flight: {
+      x: flight.position.x,
+      y: flight.position.y,
+      z: flight.position.z,
+      airspeed: flight.airspeed,
+      pitch: flight.pitch,
+      roll: flight.roll,
+      yaw: flight.yaw,
+      throttle: flight.throttle,
+    },
+    session: session.view(performance.now()),
+    audio: audio.debug(),
+  });
+}
+
 let last = performance.now();
 
 function frame(now) {
@@ -106,30 +175,36 @@ function frame(now) {
   if (document.hidden) return;
   const dt = Math.min(Math.max(elapsed, 0), 0.05);
 
-  input.update();
-  flight.update(input.state, dt);
+  if (!session.state.finished) {
+    input.update();
+    flight.update(input.state, dt);
+    const outcome = session.update(flight, now, dt, prevPosition);
+    if (outcome.chime) audio.chime();
+    if (outcome.finished) hud.showResults(outcome.result);
+    prevPosition.copy(flight.position);
 
-  jet.position.copy(flight.position);
-  jet.quaternion.copy(flight.quaternion);
+    jet.position.copy(flight.position);
+    jet.quaternion.copy(flight.quaternion);
 
-  updateChaseCamera(chase, flight, dt);
-  const camera = chase.camera.position;
-  const cameraFloor = Math.max(1.2, terrain.heightAt(camera.x, camera.z) + 2.2);
-  if (camera.y < cameraFloor) {
-    camera.y = cameraFloor;
-    chase.camera.lookAt(chase.lookCurrent);
+    updateChaseCamera(chase, flight, dt);
+    const camera = chase.camera.position;
+    const cameraFloor = Math.max(1.2, terrain.heightAt(camera.x, camera.z) + 2.2);
+    if (camera.y < cameraFloor) {
+      camera.y = cameraFloor;
+      chase.camera.lookAt(chase.lookCurrent);
+    }
+    input.syncThrottle(flight.throttle);
   }
-  updateSky(sky, chase.camera);
 
+  updateSky(sky, chase.camera);
   ocean.mesh.position.x = flight.position.x;
   ocean.mesh.position.z = flight.position.z;
   ocean.material.uniforms.time.value = now * 0.001;
-
   sky.material.uniforms.time.value = now * 0.001;
   updateClouds(clouds, chase.camera, now * 0.001);
-
-  input.syncThrottle(flight.throttle);
-  hud.update(flight);
+  updateGates(gates, session, now);
+  audio.update(flight);
+  hud.update(flight, session.view(now));
   renderer.render(scene, chase.camera);
   considerResolution(elapsed);
 }

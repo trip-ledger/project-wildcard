@@ -7,7 +7,9 @@ Everything drawn in the scene so far is procedural or written for this project.
 - The sky is an original gradient with a sun disc and simple cloud bands.
 - Islands are an original low-poly height field: placed domes, value noise, and height-based vertex colours. No heightmap image is included.
 - Cloud puffs are an original canvas texture (soft radial blobs) drawn onto instanced cards. No cloud photograph or sprite sheet is included.
-- No photographs, audio, downloaded fonts, logos, or third-party art packs are included.
+- Course rings are Three.js torus meshes with original colours. No imported model.
+- The engine hum, wind, and gate chime are synthesized in the browser with the Web Audio API. No audio files are included.
+- No photographs, downloaded fonts, logos, or third-party art packs are included.
 
 Third-party software:
 
