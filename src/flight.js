@@ -14,6 +14,14 @@ const MAX_ROLL = 1.2;
 const STALL = 46;
 const FLOOR_Y = 3;
 const CEILING_Y = 6000;
+const LAND = 1;
+const PROBES = [
+  [0, -0.95, 0.2],
+  [0, -0.4, -6.1],
+  [0, 0.15, 5.6],
+  [7.3, -0.35, 0.3],
+  [-7.3, -0.35, 0.3],
+];
 
 const IDLE_INPUT = {
   pitch: 0,
@@ -51,6 +59,10 @@ export class FlightModel {
     this._gPerp = new THREE.Vector3();
     this._liftDir = new THREE.Vector3();
     this._perpVel = new THREE.Vector3();
+    this._probe = new THREE.Vector3();
+    this.lastSafe = new THREE.Vector3();
+    this.crashed = false;
+    this._grace = 0;
     this.reset();
   }
 
@@ -67,6 +79,13 @@ export class FlightModel {
     this.airspeed = V_REF;
     this._booted = false;
     this._perpVel.set(0, 0, 0);
+    this.crashed = false;
+    this._grace = 0.35;
+    this.lastSafe.copy(this.position);
+  }
+
+  armGrace(seconds) {
+    this._grace = seconds;
   }
 
   get heading() {
@@ -75,7 +94,7 @@ export class FlightModel {
 
   update(input = IDLE_INPUT, dt = 0) {
     dt = clamp(dt, 0, 0.05);
-    if (dt === 0) return;
+    if (dt === 0 || this.crashed) return;
 
     this.pitch = clamp(this.pitch + input.pitch * PITCH_RATE * dt, MIN_PITCH, MAX_PITCH);
     this.roll = clamp(this.roll + input.roll * ROLL_RATE * dt, -MAX_ROLL, MAX_ROLL);
@@ -135,28 +154,73 @@ export class FlightModel {
     this.velocity.copy(this.forward).multiplyScalar(this.airspeed).add(this._perpVel);
     this.position.addScaledVector(this.velocity, dt);
 
-    const floor = this.surfaceFloor();
-    if (this.position.y < floor) {
-      this.position.y = floor;
+    this.applyWater(dt);
+    this.applyCeiling();
+
+    if (this._grace > 0) {
+      this._grace = Math.max(0, this._grace - dt);
+    } else if (this.terrainContact()) {
+      this.position.copy(this.lastSafe);
       if (this.velocity.y < 0) this.velocity.y = 0;
       if (this._perpVel.y < 0) this._perpVel.y = 0;
-      this.airspeed = Math.max(0, this.airspeed - 14 * dt);
-      if (this.pitch < 0.1) this.pitch += 0.45 * dt;
-    } else if (this.position.y > CEILING_Y) {
-      this.position.y = CEILING_Y;
-      if (this.velocity.y > 0) this.velocity.y = 0;
+      this.crashed = true;
+      return;
     }
+    this.lastSafe.copy(this.position);
   }
 
-  surfaceFloor() {
-    if (!this.groundHeight) return FLOOR_Y;
-    const x = this.position.x;
-    const z = this.position.z;
-    const here = this.groundHeight(x, z);
-    const ahead = this.groundHeight(x + this.velocity.x * 0.12, z + this.velocity.z * 0.12);
-    const terrain = Number.isFinite(here) ? here : 0;
-    const next = Number.isFinite(ahead) ? ahead : 0;
-    const highest = terrain > next ? terrain : next;
-    return highest > 0.35 ? highest + 6 : FLOOR_Y;
+  groundAt(x, z) {
+    if (!this.groundHeight) return 0;
+    const height = this.groundHeight(x, z);
+    return Number.isFinite(height) ? height : 0;
+  }
+
+  applyWater(dt) {
+    if (this.groundAt(this.position.x, this.position.z) > LAND) return;
+    if (this.position.y >= FLOOR_Y) return;
+    this.position.y = FLOOR_Y;
+    if (this.velocity.y < 0) this.velocity.y = 0;
+    if (this._perpVel.y < 0) this._perpVel.y = 0;
+    this.airspeed = Math.max(0, this.airspeed - 6 * dt);
+    if (this.pitch < 0) this.pitch = Math.min(0, this.pitch + 0.35 * dt);
+  }
+
+  applyCeiling() {
+    if (this.position.y <= CEILING_Y) return;
+    this.position.y = CEILING_Y;
+    if (this.velocity.y > 0) this.velocity.y = 0;
+  }
+
+  pointHits(x, y, z, pad) {
+    const height = this.groundAt(x, z);
+    return height > LAND && y < height + pad;
+  }
+
+  /**
+   * Solid ground stops the aircraft. Callers reset the route.
+   * Samples are the fuselage, nose, tail, and wingtips, plus the
+   * segment since the last clear position so a fast frame cannot
+   * tunnel through a ridge. Heights come from the drawn mesh.
+   */
+  terrainContact() {
+    if (!this.groundHeight) return false;
+    for (let i = 0; i < PROBES.length; i += 1) {
+      const probe = PROBES[i];
+      this._probe.set(probe[0], probe[1], probe[2])
+        .applyQuaternion(this.quaternion)
+        .add(this.position);
+      if (this.pointHits(this._probe.x, this._probe.y, this._probe.z, 0.3)) return true;
+    }
+    const dx = this.position.x - this.lastSafe.x;
+    const dy = this.position.y - this.lastSafe.y;
+    const dz = this.position.z - this.lastSafe.z;
+    const steps = Math.ceil(Math.hypot(dx, dy, dz) / 5);
+    for (let i = 1; i < steps; i += 1) {
+      const t = i / steps;
+      if (this.pointHits(this.lastSafe.x + dx * t, this.lastSafe.y + dy * t, this.lastSafe.z + dz * t, 1.05)) {
+        return true;
+      }
+    }
+    return false;
   }
 }

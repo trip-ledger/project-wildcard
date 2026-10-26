@@ -16,6 +16,7 @@ const vertexShader = /* glsl */ `
 const fragmentShader = /* glsl */ `
   uniform vec3 sunDirection;
   uniform float time;
+  uniform float glow;
   varying vec3 vRay;
 
   void main() {
@@ -33,8 +34,8 @@ const fragmentShader = /* glsl */ `
     color = mix(color, below, clamp(-height * 3.5, 0.0, 1.0));
 
     float sunDot = max(dot(direction, normalize(sunDirection)), 0.0);
-    color += vec3(1.0, 0.78, 0.42) * pow(sunDot, 6.0) * 0.55;
-    color += vec3(1.0, 0.92, 0.75) * smoothstep(0.9992, 0.9998, sunDot);
+    color += vec3(1.0, 0.78, 0.42) * pow(sunDot, 6.0) * 0.55 * glow;
+    color += vec3(1.0, 0.92, 0.75) * smoothstep(0.9992, 0.9998, sunDot) * glow;
 
     float band = direction.x * 7.5 + direction.z * 5.5 + time * 0.03;
     float cloud = sin(band) * sin(band * 0.37 + 2.0);
@@ -68,6 +69,7 @@ export function createSky() {
     uniforms: {
       sunDirection: { value: sunDirection.clone() },
       time: { value: 0 },
+      glow: { value: 1 },
       inverseProjection: { value: new THREE.Matrix4() },
       inverseView: { value: new THREE.Matrix4() },
     },

@@ -1,16 +1,24 @@
 // Engine, wind, and the gate chime are synthesized here. Nothing is fetched.
 
-export function createAudio(onChange) {
+export function createAudio({ getMuted, getVolume, setMuted, onChange } = {}) {
   let ctx = null;
   let master = null;
   let engine = null;
   let wind = null;
-  let muted = false;
   let started = false;
+
+  function muted() {
+    return getMuted ? getMuted() : false;
+  }
+
+  function volume() {
+    const value = getVolume ? getVolume() : 0.7;
+    return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.7;
+  }
 
   function applyGain() {
     if (!master || !ctx) return;
-    const level = muted ? 0 : 0.42;
+    const level = muted() ? 0 : 0.6 * volume();
     master.gain.setTargetAtTime(level, ctx.currentTime, 0.03);
   }
 
@@ -21,7 +29,7 @@ export function createAudio(onChange) {
     try {
       ctx = new AudioContext();
       master = ctx.createGain();
-      master.gain.value = muted ? 0 : 0.42;
+      master.gain.value = muted() ? 0 : 0.6 * volume();
       master.connect(ctx.destination);
 
       const fundamental = ctx.createOscillator();
@@ -95,17 +103,55 @@ export function createAudio(onChange) {
   }
 
   function toggle() {
-    muted = !muted;
-    if (!muted) start();
+    const next = !muted();
+    if (setMuted) setMuted(next);
+    if (!next) start();
     applyGain();
-    if (onChange) onChange(muted);
-    return muted;
+    if (onChange) onChange(next);
+    return next;
+  }
+
+  function thud() {
+    if (muted()) return;
+    start();
+    if (!ctx || !master) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(92, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.28);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.36);
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start(now);
+    osc.stop(now + 0.4);
+
+    const noiseLen = Math.max(1, Math.floor(ctx.sampleRate * 0.18));
+    const buffer = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < noiseLen; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / noiseLen);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 220;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.1, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(master);
+    noise.start(now);
+    noise.stop(now + 0.18);
   }
 
   window.addEventListener('pointerdown', (event) => {
     const target = event.target;
-    if (target && target.closest && target.closest('#mute')) return;
-    if (!muted) start();
+    if (target && target.closest && target.closest('#mute, #set-mute')) return;
+    if (!muted()) start();
   });
 
   window.addEventListener('keydown', (event) => {
@@ -115,16 +161,25 @@ export function createAudio(onChange) {
       toggle();
       return;
     }
-    if (!muted) start();
+    if (!muted()) start();
   });
 
   return {
     toggle,
+    start,
+    sync: applyGain,
+    thud,
+    suspendForHide() {
+      if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
+    },
+    resumeFromHide() {
+      if (ctx && started && !muted() && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    },
     get muted() {
-      return muted;
+      return muted();
     },
     update(flight) {
-      if (!started || !ctx || !engine || muted) return;
+      if (!started || !ctx || !engine || muted()) return;
       const throttle = Math.min(1, Math.max(0, flight.throttle));
       const now = ctx.currentTime;
       engine.fundamental.frequency.setTargetAtTime(52 + throttle * 78, now, 0.08);
@@ -136,7 +191,7 @@ export function createAudio(onChange) {
       wind.filter.frequency.setTargetAtTime(380 + speed * 980, now, 0.12);
     },
     chime() {
-      if (!started || !ctx || muted || !master) return;
+      if (!started || !ctx || muted() || !master) return;
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -154,7 +209,7 @@ export function createAudio(onChange) {
     debug() {
       return {
         started,
-        muted,
+        muted: muted(),
         state: ctx ? ctx.state : 'none',
       };
     },

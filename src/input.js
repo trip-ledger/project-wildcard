@@ -45,9 +45,10 @@ function readGamepad() {
   };
 }
 
-export function createInput() {
+export function createInput(getOptions = () => ({})) {
   const down = new Set();
   const touch = createTouchControls();
+  let enabled = true;
   const state = {
     pitch: 0,
     roll: 0,
@@ -58,6 +59,7 @@ export function createInput() {
   };
 
   function onKeyDown(event) {
+    if (!enabled) return;
     if (HANDLED.has(event.code)) event.preventDefault();
     down.add(event.code);
   }
@@ -76,7 +78,28 @@ export function createInput() {
 
   return {
     state,
+    setEnabled(next) {
+      enabled = Boolean(next);
+      if (enabled) return;
+      down.clear();
+      touch.reset();
+      state.pitch = 0;
+      state.roll = 0;
+      state.yaw = 0;
+      state.throttleUp = false;
+      state.throttleDown = false;
+      state.throttleHold = null;
+    },
     update() {
+      if (!enabled) {
+        state.pitch = 0;
+        state.roll = 0;
+        state.yaw = 0;
+        state.throttleUp = false;
+        state.throttleDown = false;
+        state.throttleHold = null;
+        return;
+      }
       let pitch = (down.has('KeyW') ? 1 : 0) - (down.has('KeyS') ? 1 : 0);
       let roll = (down.has('KeyD') ? 1 : 0) - (down.has('KeyA') ? 1 : 0);
       let yaw = (down.has('KeyQ') ? 1 : 0) - (down.has('KeyE') ? 1 : 0);
@@ -102,6 +125,7 @@ export function createInput() {
       const sliderHeld = state.throttleHold != null;
       state.throttleUp = !sliderHeld && throttleUp && !throttleDown;
       state.throttleDown = !sliderHeld && throttleDown && !throttleUp;
+      if (getOptions().invertPitch) state.pitch = -state.pitch;
     },
     syncThrottle(value) {
       touch.syncThrottle(value);

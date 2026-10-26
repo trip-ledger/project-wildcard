@@ -67,10 +67,12 @@ function applyMode(item, mode) {
   if (mode !== 'active') item.group.scale.setScalar(1);
 }
 
-export function updateGates(gates, session, now) {
+export function updateGates(gates, session, now, options = {}) {
   const { index, statuses, finished } = session.state;
-  const pulse = 1 + Math.sin(now * 0.0032) * 0.04;
-  const haloPulse = 0.28 + Math.sin(now * 0.0032) * 0.08;
+  const motion = options.reducedMotion ? 0 : 1;
+  const glow = Number.isFinite(options.glow) ? options.glow : 1;
+  const pulse = 1 + Math.sin(now * 0.0032) * 0.04 * motion;
+  const haloPulse = 0.16 + 0.18 * glow + Math.sin(now * 0.0032) * 0.08 * motion * glow;
 
   for (let i = 0; i < gates.items.length; i += 1) {
     const item = gates.items[i];
