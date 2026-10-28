@@ -52,8 +52,9 @@ export function createMenu({ settings, getRoute, onPlay, onResume, onQuit }) {
           <div><dt>Gates</dt><dd id="route-gates"></dd></div>
           <div><dt>Best today</dt><dd id="route-today"></dd></div>
           <div><dt>All-time</dt><dd id="route-all"></dd></div>
+          <div><dt>Ghost</dt><dd id="route-ghost"></dd></div>
         </dl>
-        <p class="menu-copy">Fly the rings in order. The clock starts when the first ring is resolved. A ring scores 1,200. Missing one costs 500. Each second costs 20. A smooth flight adds up to 300. The same local date is the same course. This browser keeps today's best and an all-time best on this device.</p>
+        <p class="menu-copy">Fly the rings in order. The clock starts when the first ring is resolved. A ring scores 1,200. Missing one costs 500. Each second costs 20. A smooth flight adds up to 300. The same local date is the same course. This browser keeps today's best and an all-time best on this device. Finishing a run that beats the saved recording stores a short path for this route. The next flight draws it as a pale ghost jet. Settings can hide the ghost.</p>
         <button type="button" id="route-play">Play today's route</button>
       </section>
       <section class="menu-panel" data-panel="controls" hidden>
@@ -100,6 +101,8 @@ export function createMenu({ settings, getRoute, onPlay, onResume, onQuit }) {
           </fieldset>
           <p class="menu-copy" id="quality-hint">Low aims at phones. Medium and High aim at a desktop. If frames stay slow, the view drops pixel ratio, then shadows, then cloud density on its own.</p>
           <label class="check"><input id="set-invert" type="checkbox"> Invert pitch</label>
+          <label class="check"><input id="set-ghost" type="checkbox"> Show ghost jet</label>
+          <p class="menu-copy" id="ghost-hint">A pale jet flies your best recorded run of this route. Hide it if you want the sky to yourself. The recording stays in this browser.</p>
           <fieldset>
             <legend>Reduced motion</legend>
             <label class="check"><input type="radio" name="motion" value="system"> Match system</label>
@@ -140,6 +143,7 @@ export function createMenu({ settings, getRoute, onPlay, onResume, onQuit }) {
   const volume = root.querySelector('#set-volume');
   const volumeReadout = root.querySelector('#set-volume-readout');
   const invertBox = root.querySelector('#set-invert');
+  const ghostBox = root.querySelector('#set-ghost');
   const motionHint = root.querySelector('#motion-hint');
   const qualityInputs = [...root.querySelectorAll('input[name="quality"]')];
   const motionInputs = [...root.querySelectorAll('input[name="motion"]')];
@@ -196,6 +200,7 @@ export function createMenu({ settings, getRoute, onPlay, onResume, onQuit }) {
     root.querySelector('#route-gates').textContent = String(route.gates);
     root.querySelector('#route-today').textContent = formatBest(route.bestToday);
     root.querySelector('#route-all').textContent = formatBest(route.bestAll);
+    root.querySelector('#route-ghost').textContent = route.ghost || 'None';
     routePlay.hidden = kind !== 'title';
   }
 
@@ -203,6 +208,7 @@ export function createMenu({ settings, getRoute, onPlay, onResume, onQuit }) {
     const snap = settings.snapshot();
     muteBox.checked = snap.muted;
     invertBox.checked = snap.invertPitch;
+    ghostBox.checked = snap.showGhost;
     if (document.activeElement !== volume) {
       const percent = Math.round(snap.volume * 100);
       volume.value = String(percent);
@@ -270,6 +276,7 @@ export function createMenu({ settings, getRoute, onPlay, onResume, onQuit }) {
 
   muteBox.addEventListener('change', () => settings.setMuted(muteBox.checked));
   invertBox.addEventListener('change', () => settings.setInvertPitch(invertBox.checked));
+  ghostBox.addEventListener('change', () => settings.setShowGhost(ghostBox.checked));
   volume.addEventListener('input', () => {
     const percent = Number(volume.value);
     paintVolume(percent);

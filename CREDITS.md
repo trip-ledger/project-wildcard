@@ -9,9 +9,11 @@ Everything drawn in the scene so far is procedural or written for this project.
 - Cloud puffs are an original canvas texture (soft radial blobs) drawn onto instanced cards. No cloud photograph or sprite sheet is included.
 - Course rings are Three.js torus meshes with original colours. No imported model.
 - The engine hum, wind, gate chime, and crash thud are synthesized in the browser with the Web Audio API. No audio files are included.
+- The ghost jet is the same procedural aircraft, drawn with a translucent material. No extra model is included.
 - No photographs, downloaded fonts, logos, or third-party art packs are included.
 
 Third-party software:
 
 - [three.js](https://github.com/mrdoob/three.js) — MIT License
 - [Vite](https://github.com/vitejs/vite) — MIT License
+- [Playwright](https://github.com/microsoft/playwright) — Apache License 2.0. Development dependency used by the smoke test. It is not part of the game page.
