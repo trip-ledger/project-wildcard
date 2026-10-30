@@ -16,4 +16,5 @@ Third-party software:
 
 - [three.js](https://github.com/mrdoob/three.js) — MIT License
 - [Vite](https://github.com/vitejs/vite) — MIT License
-- [Playwright](https://github.com/microsoft/playwright) — Apache License 2.0. Development dependency used by the smoke test. It is not part of the game page.
+- [Playwright](https://github.com/microsoft/playwright) — Apache License 2.0. Development dependency used by the browser tests. It is not part of the game page.
+- [Lighthouse](https://github.com/GoogleChrome/lighthouse) — Apache License 2.0. Development dependency used by `npm run test:lighthouse`. It is not part of the game page.
