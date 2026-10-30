@@ -26,7 +26,9 @@ Repeat the run with `npm run build` and `npm run test:lighthouse`.
 | chromium | Chromium | 1280×720 | no | passed | passed (two tests) |
 | firefox | Firefox | 1280×720 | no | passed | skipped (covered by the journey toggle) |
 
-Firefox in GitHub Actions has no GPU and no bundled SwiftShader. CI installs `libgl1-mesa-dri` and the Firefox project sets `LIBGL_ALWAYS_SOFTWARE=1`, or the context never starts and the menu never appears.
+Firefox in GitHub Actions has no GPU and no bundled SwiftShader. CI installs `libgl1-mesa-dri`, starts the smoke test under Xvfb, and the Firefox project forces Mesa's software rasterizer with the content and GPU sandboxes off. Without that, WebGL never starts and the menu never appears.
+
+On a slow runner each flight step is capped at 50 ms, so the opening ring can take longer than 15 s of wall clock. The journey waits up to 40 s for that ring.
 | webkit | WebKit | 1280×720 | no | passed | skipped |
 | mobile-chrome | Chromium | Pixel 5 (393×851, device scale 2.625) | yes | passed | skipped |
 

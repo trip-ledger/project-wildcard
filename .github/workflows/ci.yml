@@ -38,7 +38,13 @@ jobs:
         run: npm run test:budget
 
       - name: Smoke test
-        run: npm run test:smoke
+        run: xvfb-run -a --server-args="-screen 0 1280x720x24" npm run test:smoke
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          GALLIUM_DRIVER: llvmpipe
+          EGL_PLATFORM: surfaceless
+          MOZ_DISABLE_CONTENT_SANDBOX: "1"
+          MOZ_DISABLE_GPU_SANDBOX: "1"
 
       - name: Upload smoke failure
         if: failure()

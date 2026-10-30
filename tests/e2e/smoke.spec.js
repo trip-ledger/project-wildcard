@@ -97,9 +97,16 @@ test('flight journey: start, fly, ring, pause, settings, ghost, results', async 
   }
 
   const started = Date.now();
-  await expect.poll(async () => (await debugState(page)).session.hits, {
-    timeout: 15_000,
-    message: 'the opening ring was not passed',
+  let lastFlight = null;
+  await expect.poll(async () => {
+    const state = await debugState(page);
+    lastFlight = state.flight;
+    return state.session.hits;
+  }, {
+    // Software GL on a shared runner can take well under real time, because
+    // each step is capped at 50ms of flight. 15s of wall clock is not enough.
+    timeout: 40_000,
+    message: () => `the opening ring was not passed (${JSON.stringify(lastFlight)})`,
   }).toBeGreaterThan(0);
   expect((await debugState(page)).flight.crashed).toBe(false);
   expect((await debugState(page)).ghost.visible).toBe(true);
