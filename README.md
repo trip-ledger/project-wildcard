@@ -83,6 +83,8 @@ npm run test:smoke
 
 Run a single project with `npx playwright test --project=firefox` (or `chromium`, `webkit`, `mobile-chrome`).
 
+Firefox does not ship a software WebGL fallback of its own. On a machine with no GPU, install Mesa's software driver (`libgl1` and `libgl1-mesa-dri`). The Firefox project sets `LIBGL_ALWAYS_SOFTWARE=1`. CI does that install. Chromium uses SwiftShader instead.
+
 ## Lighthouse
 
 `npm run test:lighthouse` builds nothing and does not start from `npm run dev`. Build first, then run it. The script serves `dist/` with `vite preview` and runs Lighthouse 12 against that origin, once for desktop and once for mobile, in headless Chrome with software WebGL (SwiftShader). It prints Performance, Accessibility, and Best Practices. The same checks can be started by hand from GitHub Actions: the `lighthouse` workflow is `workflow_dispatch` only, so pull requests do not wait on it.

@@ -23,6 +23,11 @@ jobs:
       - name: Install browsers
         run: npx playwright install --with-deps chromium firefox webkit
 
+      # Firefox has no bundled SwiftShader. GitHub's runner has no GPU, so
+      # WebGL needs Mesa's software rasterizer or the context never comes up.
+      - name: Install software OpenGL
+        run: sudo apt-get update && sudo apt-get install -y libgl1 libgl1-mesa-dri
+
       - name: Build
         run: npm run build
 

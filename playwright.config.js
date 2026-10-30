@@ -47,11 +47,18 @@ export default defineConfig({
         ...devices['Desktop Firefox'],
         viewport: { width: 1280, height: 720 },
         launchOptions: {
+          env: {
+            ...process.env,
+            LIBGL_ALWAYS_SOFTWARE: '1',
+            GALLIUM_DRIVER: 'llvmpipe',
+          },
           firefoxUserPrefs: {
             'webgl.force-enabled': true,
             'webgl.disabled': false,
             'webgl.forbid-software': false,
+            'webgl.enable-webgl2': true,
             'layers.acceleration.disabled': true,
+            'gfx.webrender.all': false,
           },
         },
       },

@@ -25,6 +25,8 @@ Repeat the run with `npm run build` and `npm run test:lighthouse`.
 | --- | --- | --- | --- | --- | --- |
 | chromium | Chromium | 1280×720 | no | passed | passed (two tests) |
 | firefox | Firefox | 1280×720 | no | passed | skipped (covered by the journey toggle) |
+
+Firefox in GitHub Actions has no GPU and no bundled SwiftShader. CI installs `libgl1-mesa-dri` and the Firefox project sets `LIBGL_ALWAYS_SOFTWARE=1`, or the context never starts and the menu never appears.
 | webkit | WebKit | 1280×720 | no | passed | skipped |
 | mobile-chrome | Chromium | Pixel 5 (393×851, device scale 2.625) | yes | passed | skipped |
 
