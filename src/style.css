@@ -254,6 +254,7 @@ canvas {
 }
 
 #fly-again,
+#share-result,
 #results-menu {
   display: block;
   margin-top: 12px;
@@ -274,9 +275,18 @@ canvas {
   color: #1c140f;
 }
 
+#share-result,
 #results-menu {
   background: transparent;
   color: #f7f1e8;
+}
+
+#share-status {
+  margin: 8px 0 0;
+  min-height: 1.4em;
+  color: #ffd7a1;
+  font-size: 15px;
+  text-align: center;
 }
 
 #touch-ui {
@@ -598,8 +608,15 @@ html.touch-controls .hint,
   line-height: 1.5;
 }
 
-.menu-copy {
+.menu-copy,
+.about-lead p {
   margin: 8px 0;
+}
+
+.about-lead p {
+  font-size: 16px;
+  line-height: 1.5;
+  color: #f7f1e8;
 }
 
 .menu-fields fieldset {

@@ -1,6 +1,8 @@
-# Untitled
+# Virga
 
-A small browser flight scene: one aircraft, open water, a few low-poly islands, clouds, and keyboard or touch controls.
+A small browser flight at golden hour: one aircraft, open water, a few low-poly islands, clouds, and keyboard or touch controls. Each day has one ring course.
+
+The name is Virga: shafts of rain that fade before they reach the ground, the way the light does at the end of the day. An earlier candidate, Contrail, belongs to a former Sony game studio and a cancelled computer-game trademark, so it was set aside.
 
 ## Run
 
@@ -32,7 +34,7 @@ npm run preview
 | M | Mute or unmute |
 | Esc / P | Pause |
 
-The title screen is Play, Today's Route, Controls, Settings, and About. About shows `CREDITS.md`. Settings cover mute, volume, graphics quality (Low, Medium, High), invert pitch, reduced motion, and the ghost jet. Reduced motion follows the system setting until you choose otherwise, and it tones down camera shake and the sun/ring glow.
+The title screen is Play, Today's Route, Controls, Settings, and About. About is a short note on how the game was made, then `CREDITS.md`. Settings cover mute, volume, graphics quality (Low, Medium, High), invert pitch, reduced motion, and the ghost jet. Reduced motion follows the system setting until you choose otherwise, and it tones down camera shake and the sun/ring glow.
 
 On a phone, or any window narrower than about 820px, a stick on the left pitches and rolls, and the slider on the right sets throttle. Keyboard still works beside those controls. A standard gamepad maps the left stick to pitch and roll, the right stick and bumpers to yaw, and the triggers to throttle. Start pauses. In a menu, the D-pad or left stick moves, A activates, and B goes back.
 
@@ -48,13 +50,17 @@ Each local day (`YYYY-MM-DD`) builds one course of 6–10 glowing rings among th
 
 The clock starts when the first ring is resolved. It pauses while the pause menu is open. Flying through a ring scores 1,200. Missing one costs 500. Each second costs 20. A smooth flight, with little sudden pitch or bank, adds up to 300. The finish card shows time, rings hit, and score. Fly again restarts the same course. Main menu returns to the title screen.
 
+Share result, on that card, copies a text summary of the run to the clipboard: the name, the date, the score, the time, and the gates. It does not call the network and it does not record anything.
+
+The build also writes `public/og.png`, a 1200×630 golden-hour card. The page points the Open Graph and Twitter image tags at `og.png`. Relative URLs are enough.
+
 The page does not talk to a server. This browser keeps today's best and an all-time best in localStorage, along with the settings. Refresh starts over at the title screen; the course for that date stays put.
 
 Finishing a run stores a short recording when that score beats the ghost already saved for the route seed. The next attempt of the same route draws it as a pale translucent jet. Hide it from Settings. Samples are position and rotation about eight times a second, quantized, and capped so one route stays under about 16KB. This browser keeps two seeds. A best score from before recordings existed has no ghost until a run is finished.
 
 Sound is synthesized in the page: an engine hum that follows the throttle, wind that follows airspeed, a soft chime for a ring, and a short thud if you hit terrain. It stays silent until a click or a key press.
 
-`?date=YYYY-MM-DD` pins the course. `?complete=1` finishes it immediately. `?play=1` skips the title screen. `?debug=1` adds `window.__debug()`, `window.__selfTest()`, and helpers that plant or save a ghost recording.
+`?date=YYYY-MM-DD` pins the course. `?complete=1` finishes it immediately. `?play=1` skips the title screen. `?autopilot=1` flies a smooth path through the rings, for the demo capture. `?debug=1` adds `window.__debug()`, `window.__selfTest()`, and helpers that plant or save a ghost recording.
 
 ## Notes
 
@@ -63,8 +69,6 @@ Flight is an arcade approximation: thrust, drag, gravity, and a lift term that h
 Island height for the aircraft and the camera is sampled from the triangles that are actually drawn. Hitting that ground crashes the flight, shows a short message, and resets today's route. The camera is lifted so it does not sit inside the terrain. Over open water the aircraft still rides a few metres above the waves.
 
 The view starts at the display resolution, capped by the graphics setting (about 720p on Low, 1080p on High). Phones aim at about 30fps and desktops at about 60. If frames stay slow, it steps the pixel ratio down, then turns shadows off, then thins the clouds. Shadows are part of the High setting. Rendering pauses while the tab is hidden. The title screen, pause menu, and results card paint one still frame instead of animating, so an idle menu does not keep the GPU busy. That still is drawn at no more than 1× and without shadows. Shadows and the full pixel ratio come back when the flight starts, including the short moment after a terrain hit.
-
-The page title is the placeholder `Untitled`.
 
 ## Test
 
@@ -79,7 +83,7 @@ npm run test:smoke
 
 `npm test` checks the ghost recording format. `npm run test:budget` fails if the built JavaScript exceeds the byte budget in `tests/bundle-budget.mjs`.
 
-`npm run test:smoke` runs one journey on each browser: title focus order, about ten seconds of flight, the opening ring, pause and resume, mute, reduced motion, the ghost toggle, and the results card. Chromium also replays a saved ghost and checks that a finished run becomes the next ghost. A frame-time sample is logged while flying. That sample fails the run only if frames stall. One worker is used so the browsers are not all rendering at once.
+`npm run test:smoke` runs one journey on each browser: the Virga title, focus order, the about note, about ten seconds of flight, the opening ring, pause and resume, mute, reduced motion, the ghost toggle, the results card, and Share result. Chromium also reads the copied summary and checks the share image. Chromium also replays a saved ghost and checks that a finished run becomes the next ghost. A frame-time sample is logged while flying. That sample fails the run only if frames stall. One worker is used so the browsers are not all rendering at once.
 
 Run a single project with `npx playwright test --project=firefox` (or `chromium`, `webkit`, `mobile-chrome`).
 
@@ -95,3 +99,7 @@ npm run test:lighthouse
 ```
 
 `CHROME_PATH` can point at a Chrome or Chromium binary. When it is unset, the script uses `google-chrome` on `PATH`, then a Playwright Chromium build if one is installed.
+
+## Demo capture
+
+`npm run capture:demo` builds the page, then records a scripted flight of the 15 June 2026 route at 1280×720. It writes `captures/demo.webm` (about 45–60 seconds of flying) and a handful of hero screenshots into `captures/`. That folder is gitignored. Nothing is uploaded.

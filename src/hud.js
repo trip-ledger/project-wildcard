@@ -1,9 +1,44 @@
 import { headingDegrees } from './flight.js';
 import { formatBest, formatTime } from './session.js';
+import { shareSummary } from './share.js';
 
 function signedAngle(target, current) {
   const delta = target - current;
   return Math.atan2(Math.sin(delta), Math.cos(delta));
+}
+
+function copyWithSelection(text) {
+  try {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.top = '0';
+    area.style.left = '0';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    area.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    area.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function copySummary(text) {
+  const canWrite = Boolean(navigator.clipboard?.writeText) && window.isSecureContext;
+  const attempt = canWrite
+    ? Promise.race([
+      navigator.clipboard.writeText(text),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('clipboard timeout')), 700);
+      }),
+    ])
+    : Promise.reject(new Error('no clipboard'));
+  return attempt.then(() => true).catch(() => copyWithSelection(text));
 }
 
 function formatDistance(meters, vertical) {
@@ -99,6 +134,8 @@ export function createHud({ onFlyAgain, onToggleMute, onPause, onMainMenu }) {
         <div><dt>All-time</dt><dd id="results-all"></dd></div>
       </dl>
       <button id="fly-again" type="button">Fly again</button>
+      <button id="share-result" type="button">Share result</button>
+      <p id="share-status" role="status" aria-live="polite"></p>
       <button id="results-menu" type="button">Main menu</button>
     </div>
   `;
@@ -117,6 +154,8 @@ export function createHud({ onFlyAgain, onToggleMute, onPause, onMainMenu }) {
   const arrow = cue.querySelector('#gate-arrow');
   const range = cue.querySelector('#hud-range');
   const flyAgain = results.querySelector('#fly-again');
+  const shareBtn = results.querySelector('#share-result');
+  const shareStatus = results.querySelector('#share-status');
   const resultsMenu = results.querySelector('#results-menu');
 
   const resultsTime = results.querySelector('#results-time');
@@ -136,10 +175,17 @@ export function createHud({ onFlyAgain, onToggleMute, onPause, onMainMenu }) {
   resultsMenu.addEventListener('click', () => {
     if (onMainMenu) onMainMenu();
   });
+  shareBtn.addEventListener('click', () => {
+    const text = shareBtn.dataset.summary || '';
+    if (!text) return;
+    copySummary(text).then((ok) => {
+      setText(shareStatus, ok ? 'Copied' : 'Could not copy');
+    });
+  });
 
   results.addEventListener('keydown', (event) => {
     if (results.hidden) return;
-    const items = [flyAgain, resultsMenu];
+    const items = [flyAgain, shareBtn, resultsMenu];
     if (event.key === 'Tab') {
       event.preventDefault();
       const index = items.indexOf(document.activeElement);
@@ -186,6 +232,8 @@ export function createHud({ onFlyAgain, onToggleMute, onPause, onMainMenu }) {
       setText(resultsScore, String(result.score));
       setText(resultsToday, formatBest(result.bestToday));
       setText(resultsAll, formatBest(result.bestAll));
+      shareBtn.dataset.summary = shareSummary(result);
+      setText(shareStatus, '');
       results.hidden = false;
       flyAgain.focus();
     },

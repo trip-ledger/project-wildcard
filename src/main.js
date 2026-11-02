@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyFlyerPose, createRouteFlyer } from './autopilot.js';
 import { createAudio } from './audio.js';
 import { createChaseCamera, liftCameraAboveTerrain, updateChaseCamera } from './camera.js';
 import { createClouds, updateClouds } from './clouds.js';
@@ -95,6 +96,14 @@ const dateKey = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
   ? dateParam
   : localDateKey(new Date());
 const route = buildRoute(dateKey, terrain.heightAt);
+const autopilotOn = params.get('autopilot') === '1';
+const routeFlyer = autopilotOn
+  ? createRouteFlyer({
+    gates: route.gates,
+    start: { x: 0, y: 320, z: 0 },
+    heightAt: (x, z) => terrain.meshHeightAt(x, z),
+  })
+  : null;
 await yieldThread();
 const gates = createGates(route);
 scene.add(gates.group);
@@ -557,11 +566,32 @@ function stepScene(now, dt, noteElapsed = null) {
 
     if (mode === 'playing') {
       input.update();
-      flight.update(input.state, dt);
-      if (flight.crashed) onCrash(now);
+      if (routeFlyer) {
+        const moved = routeFlyer.advance(now);
+        let outcome = null;
+        for (let i = 0; i < moved.poses.length; i += 1) {
+          const step = moved.poses[i];
+          flight.position.set(step.x, step.y, step.z);
+          flight.lastSafe.copy(flight.position);
+          outcome = session.update(flight, now, dt, prevPosition);
+          prevPosition.copy(flight.position);
+          if (outcome.chime) audio.chime();
+          if (outcome.finished) break;
+        }
+        applyFlyerPose(flight, moved.pose, moved.speed);
+        if (outcome?.finished) {
+          ghostRecorder.sample(flightPose(), 0, true);
+          ghostStore.save(outcome.result.score, ghostRecorder.snapshot());
+          hud.showResults(outcome.result);
+          setMode('results');
+        }
+      } else {
+        flight.update(input.state, dt);
+        if (flight.crashed) onCrash(now);
+      }
     }
 
-    if (mode === 'playing') {
+    if (mode === 'playing' && !routeFlyer) {
       const outcome = session.update(flight, now, dt, prevPosition);
       if (outcome.chime) audio.chime();
       if (outcome.finished) {

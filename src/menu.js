@@ -1,6 +1,6 @@
 import { creditsHtml } from './credits.js';
 import { formatBest } from './session.js';
-import { GAME_TITLE } from './title.js';
+import { ABOUT_PARAGRAPHS, GAME_TITLE } from './title.js';
 
 function focusables(scope) {
   return [...scope.querySelectorAll('button, a[href], input, select, textarea')].filter((el) => {
@@ -115,6 +115,7 @@ export function createMenu({ settings, getRoute, onPlay, onResume, onQuit }) {
       <section class="menu-panel" data-panel="about" hidden>
         <h2 id="about-heading" tabindex="-1">About</h2>
         <button type="button" class="menu-back" data-back>Back</button>
+        <div class="about-lead" id="about-lead"></div>
         <div class="credits" id="credits-body"></div>
       </section>
     </div>
@@ -136,6 +137,12 @@ export function createMenu({ settings, getRoute, onPlay, onResume, onQuit }) {
   const resumeBtn = root.querySelector('#menu-resume');
   const quitBtn = root.querySelector('#menu-quit');
   const routePlay = root.querySelector('#route-play');
+  const aboutLead = root.querySelector('#about-lead');
+  for (const paragraph of ABOUT_PARAGRAPHS) {
+    const p = document.createElement('p');
+    p.textContent = paragraph;
+    aboutLead.appendChild(p);
+  }
   const creditsBody = root.querySelector('#credits-body');
   creditsBody.innerHTML = creditsHtml();
 

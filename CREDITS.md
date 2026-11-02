@@ -10,6 +10,7 @@ Everything drawn in the scene so far is procedural or written for this project.
 - Course rings are Three.js torus meshes with original colours. No imported model.
 - The engine hum, wind, gate chime, and crash thud are synthesized in the browser with the Web Audio API. No audio files are included.
 - The ghost jet is the same procedural aircraft, drawn with a translucent material. No extra model is included.
+- The share image (`public/og.png`, 1200×630) is drawn by `scripts/share-card.mjs` from the same golden-hour colours as the sky. No photograph is included. The build writes that file again.
 - No photographs, downloaded fonts, logos, or third-party art packs are included.
 
 Third-party software:
