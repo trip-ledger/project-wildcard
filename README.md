@@ -1,5 +1,7 @@
 # Virga
 
+Status: `main` holds the private Virga MVP. The repository stays private until the 17 November 2026 reveal. GitHub Pages is off, and the game is not deployed.
+
 A small browser flight at golden hour: one aircraft, open water, a few low-poly islands, clouds, and keyboard or touch controls. Each day has one ring course.
 
 The name is Virga: shafts of rain that fade before they reach the ground, the way the light does at the end of the day. An earlier candidate, Contrail, belongs to a former Sony game studio and a cancelled computer-game trademark, so it was set aside.
