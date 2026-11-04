@@ -5,9 +5,11 @@ const COLUMNS = 5;
 const ROWS = 5;
 
 const vertexShader = /* glsl */ `
+  attribute vec3 aPlaneNormal;
   varying vec2 vUv;
   varying vec3 vWorld;
   varying vec3 vColor;
+  varying float vFacing;
 
   void main() {
     vUv = uv;
@@ -18,6 +20,8 @@ const vertexShader = /* glsl */ `
     #endif
     vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
     vWorld = world.xyz;
+    vec3 worldNormal = normalize(mat3(instanceMatrix) * aPlaneNormal);
+    vFacing = abs(dot(normalize(cameraPosition - world.xyz), worldNormal));
     gl_Position = projectionMatrix * viewMatrix * world;
   }
 `;
@@ -31,9 +35,13 @@ const fragmentShader = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorld;
   varying vec3 vColor;
+  varying float vFacing;
 
   void main() {
     float alpha = texture2D(map, vUv).a;
+    /* Edge-on cards collapse into a dark streak; fade them. */
+    float graze = smoothstep(0.04, 0.22, vFacing);
+    alpha *= graze;
     if (alpha < 0.04) discard;
 
     vec3 toSun = normalize(sunDirection);
@@ -42,6 +50,7 @@ const fragmentShader = /* glsl */ `
     vec3 shade = vec3(0.67, 0.48, 0.42);
     vec3 lit = vec3(1.0, 0.84, 0.64);
     vec3 col = mix(shade, lit, clamp(0.35 + warm * 0.4 + lift * 0.25, 0.0, 1.0));
+    col = mix(lit, col, graze);
     col *= mix(vec3(1.0), vColor, 0.55);
 
     float dist = length(cameraPosition - vWorld);
@@ -108,20 +117,25 @@ function puffGeometry() {
     [-1, 0.72, 0, 1],
   ];
 
+  const normals = [];
   for (let plane = 0; plane < 2; plane += 1) {
     const angle = plane * Math.PI * 0.5;
     const cosine = Math.cos(angle);
     const sine = Math.sin(angle);
+    const nx = -sine;
+    const nz = cosine;
     for (let i = 0; i < quad.length; i += 1) {
       const [x, y, u, v] = quad[i];
       positions.push(x * cosine, y, x * sine);
       uvs.push(u, v);
+      normals.push(nx, 0, nz);
     }
   }
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setAttribute('aPlaneNormal', new THREE.Float32BufferAttribute(normals, 3));
   return geometry;
 }
 

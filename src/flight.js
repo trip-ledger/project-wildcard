@@ -41,23 +41,32 @@ export function headingDegrees(yaw) {
 export class FlightModel {
   constructor(groundHeight = null) {
     this.groundHeight = typeof groundHeight === 'function' ? groundHeight : null;
-    this.position = new THREE.Vector3(0, 320, 0);
-    this.velocity = new THREE.Vector3(0, 0, -V_REF);
-    this.forward = new THREE.Vector3(0, 0, -1);
-    this.up = new THREE.Vector3(0, 1, 0);
+    this.position = new THREE.Vector3();
+    this.velocity = new THREE.Vector3();
+    this.forward = new THREE.Vector3();
+    this.up = new THREE.Vector3();
     this.quaternion = new THREE.Quaternion();
-    this.yaw = 0;
-    this.pitch = 0;
-    this.roll = 0;
-    this.throttle = 0.62;
-    this.airspeed = V_REF;
-
     this._euler = new THREE.Euler(0, 0, 0, 'YXZ');
     this._g = new THREE.Vector3(0, -G, 0);
     this._gPerp = new THREE.Vector3();
     this._liftDir = new THREE.Vector3();
     this._perpVel = new THREE.Vector3();
+    this.reset();
+  }
+
+  reset() {
+    this.position.set(0, 320, 0);
+    this.velocity.set(0, 0, -V_REF);
+    this.forward.set(0, 0, -1);
+    this.up.set(0, 1, 0);
+    this.quaternion.identity();
+    this.yaw = 0;
+    this.pitch = 0;
+    this.roll = 0;
+    this.throttle = 0.62;
+    this.airspeed = V_REF;
     this._booted = false;
+    this._perpVel.set(0, 0, 0);
   }
 
   get heading() {
