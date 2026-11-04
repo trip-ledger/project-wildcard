@@ -100,6 +100,40 @@ export function heightAt(x, z) {
   return height;
 }
 
+const grids = [];
+
+function heightOnGrid(grid, x, z) {
+  const fx = (x - grid.x0) / grid.xStep;
+  const fz = (z - grid.z0) / grid.zStep;
+  const eps = 1e-3;
+  if (fx < -eps || fz < -eps || fx > grid.cells + eps || fz > grid.cells + eps) return null;
+  const clampedX = Math.min(grid.cells, Math.max(0, fx));
+  const clampedZ = Math.min(grid.cells, Math.max(0, fz));
+  const ix = Math.min(grid.cells - 1, Math.floor(clampedX));
+  const iz = Math.min(grid.cells - 1, Math.floor(clampedZ));
+  const tx = clampedX - ix;
+  const tz = clampedZ - iz;
+  const stride = grid.cells + 1;
+  const h00 = grid.heights[iz * stride + ix];
+  const h10 = grid.heights[iz * stride + ix + 1];
+  const h01 = grid.heights[(iz + 1) * stride + ix];
+  const h11 = grid.heights[(iz + 1) * stride + ix + 1];
+  // Matches the two triangles written in appendIsland: (a, c, b) and (b, c, d).
+  if (tx + tz <= 1) return h00 + (h10 - h00) * tx + (h01 - h00) * tz;
+  return h11 + (h10 - h11) * (1 - tz) + (h01 - h11) * (1 - tx);
+}
+
+/** Height of the drawn island mesh. Open water is 0. The apron can be below 0. */
+export function meshHeightAt(x, z) {
+  let height = null;
+  for (let i = 0; i < grids.length; i += 1) {
+    const sample = heightOnGrid(grids[i], x, z);
+    if (sample == null) continue;
+    if (height == null || sample > height) height = sample;
+  }
+  return height == null ? 0 : height;
+}
+
 function colorAt(height, target) {
   const y = Math.max(height, 0);
   let below = STOPS[0];
@@ -129,6 +163,7 @@ function appendIsland(island, positions, colors, indices, scratch) {
   const z0 = island.z - island.rz * reach;
   const xStep = (island.rx * 2 * reach) / cells;
   const zStep = (island.rz * 2 * reach) / cells;
+  const heights = new Float32Array(stride * stride);
 
   for (let iz = 0; iz <= cells; iz += 1) {
     for (let ix = 0; ix <= cells; ix += 1) {
@@ -140,11 +175,13 @@ function appendIsland(island, positions, colors, indices, scratch) {
         const t = smoothstep(0.9, 1.14, local.distance);
         y = y * (1 - t) - 3.5 * t;
       }
+      heights[iz * stride + ix] = y;
       positions.push(x, y, z);
       colorAt(y, scratch);
       colors.push(scratch.r, scratch.g, scratch.b);
     }
   }
+  grids.push({ x0, z0, xStep, zStep, cells, heights });
 
   for (let iz = 0; iz < cells; iz += 1) {
     for (let ix = 0; ix < cells; ix += 1) {
@@ -158,6 +195,7 @@ function appendIsland(island, positions, colors, indices, scratch) {
 }
 
 export function createTerrain() {
+  grids.length = 0;
   const positions = [];
   const colors = [];
   const indices = [];
@@ -183,5 +221,28 @@ export function createTerrain() {
 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'terrain';
-  return { mesh, heightAt };
+  mesh.receiveShadow = true;
+
+  function vertexError() {
+    const position = geometry.getAttribute('position');
+    let maxError = 0;
+    const step = Math.max(1, Math.floor(position.count / 40));
+    for (let i = 0; i < position.count; i += step) {
+      const x = position.getX(i);
+      const y = position.getY(i);
+      const z = position.getZ(i);
+      let best = Infinity;
+      for (let g = 0; g < grids.length; g += 1) {
+        const sample = heightOnGrid(grids[g], x, z);
+        if (sample == null) continue;
+        best = Math.min(best, Math.abs(sample - y));
+      }
+      if (!Number.isFinite(best)) best = Math.abs(meshHeightAt(x, z) - y);
+      if (!Number.isFinite(best)) best = 1000;
+      maxError = Math.max(maxError, best);
+    }
+    return maxError;
+  }
+
+  return { mesh, heightAt, meshHeightAt, vertexError };
 }

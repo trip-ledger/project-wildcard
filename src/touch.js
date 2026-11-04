@@ -18,7 +18,7 @@ export function createTouchControls() {
   const root = document.createElement('div');
   root.id = 'touch-ui';
   root.innerHTML = `
-    <div id="stick" aria-label="Pitch and roll">
+    <div id="stick" role="group" aria-label="Pitch and roll stick">
       <div id="stick-knob"></div>
     </div>
     <div id="throttle-pad" role="slider" aria-label="Throttle" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62">

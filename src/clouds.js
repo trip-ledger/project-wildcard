@@ -198,22 +198,32 @@ export function createClouds(fogColor, fogDensity) {
   }
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 
+  mesh.count = puffs.length;
   return {
     mesh,
     material,
     puffs,
     span: SPAN,
+    active: puffs.length,
     dummy: new THREE.Object3D(),
   };
 }
 
+export function setCloudDensity(clouds, fraction) {
+  const clamped = Math.min(1, Math.max(0.15, fraction));
+  const count = Math.max(6, Math.round(clouds.puffs.length * clamped));
+  clouds.active = count;
+  clouds.mesh.count = count;
+}
+
 export function updateClouds(clouds, camera, timeSeconds) {
   const { puffs, span, dummy, mesh } = clouds;
+  const count = clouds.active || puffs.length;
   const originX = camera.position.x;
   const originZ = camera.position.z;
   const wind = timeSeconds * 8;
 
-  for (let i = 0; i < puffs.length; i += 1) {
+  for (let i = 0; i < count; i += 1) {
     const puff = puffs[i];
     const x = originX + wrap(puff.x + wind - originX, span);
     const z = originZ + wrap(puff.z + wind * 0.35 - originZ, span);

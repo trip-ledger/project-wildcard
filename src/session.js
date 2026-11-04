@@ -81,12 +81,21 @@ function freshState(route) {
     lastPitchRate: 0,
     lastRollRate: 0,
     smoothReady: false,
+    pausedMs: 0,
+    pauseStarted: 0,
   };
 }
 
 export function createSession(route) {
   let state = freshState(route);
   let bests = loadBests();
+
+  function elapsedAt(now) {
+    if (!state.started) return 0;
+    let paused = state.pausedMs;
+    if (state.pauseStarted) paused += Math.max(0, now - state.pauseStarted);
+    return Math.max(0, (now - state.startMs - paused) / 1000);
+  }
 
   function smooth01() {
     if (state.jerkSamples === 0) return 1;
@@ -172,7 +181,7 @@ export function createSession(route) {
       if (state.finished) return outcome;
 
       if (state.started) {
-        state.elapsed = Math.max(0, (now - state.startMs) / 1000);
+        state.elapsed = elapsedAt(now);
         sampleSmooth(flight, dt);
       }
 
@@ -209,10 +218,17 @@ export function createSession(route) {
     reset() {
       state = freshState(route);
     },
+    pauseClock(now) {
+      if (!state.started || state.finished || state.pauseStarted) return;
+      state.pauseStarted = now;
+    },
+    resumeClock(now) {
+      if (!state.pauseStarted) return;
+      state.pausedMs += Math.max(0, now - state.pauseStarted);
+      state.pauseStarted = 0;
+    },
     view(now) {
-      const elapsed = state.finished
-        ? state.elapsed
-        : (state.started ? Math.max(0, (now - state.startMs) / 1000) : 0);
+      const elapsed = state.finished ? state.elapsed : elapsedAt(now);
       const today = bests.days[route.date];
       return {
         date: route.date,
