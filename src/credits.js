@@ -15,7 +15,7 @@ function inline(text) {
   );
 }
 
-/** Render the repo CREDITS.md. The About screen shows this and nothing else. */
+/** Render the repo CREDITS.md. The About screen shows this under a short note. */
 export function creditsHtml() {
   const lines = String(raw).replace(/\r\n/g, '\n').split('\n');
   let html = '';

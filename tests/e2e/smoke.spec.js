@@ -57,8 +57,25 @@ function isPhone(testInfo) {
 test('flight journey: start, fly, ring, pause, settings, ghost, results', async ({ page }, testInfo) => {
   const errors = trackErrors(page);
   const phone = isPhone(testInfo);
+  if (testInfo.project.name === 'chromium' || testInfo.project.name === 'mobile-chrome') {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  }
   await page.goto('/?debug=1&date=2026-06-15');
-  await expect(page).toHaveTitle('Untitled');
+  await expect(page).toHaveTitle('Virga');
+  await expect(page.locator('#menu-title')).toHaveText('Virga');
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    'content',
+    'Virga: hand-fly a small jet through a daily ring course at golden hour.',
+  );
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute('content', 'Virga');
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', 'og.png');
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
+  const card = await page.request.get('/og.png');
+  expect(card.ok()).toBeTruthy();
+  const bytes = await card.body();
+  expect(bytes.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  expect(bytes.readUInt32BE(16)).toBe(1200);
+  expect(bytes.readUInt32BE(20)).toBe(630);
   await expect(page.locator('#menu-play')).toBeVisible();
   await expect(page.locator('#menu-play')).toBeFocused();
   await expect(page.locator('canvas')).toBeVisible();
@@ -73,6 +90,14 @@ test('flight journey: start, fly, ring, pause, settings, ghost, results', async 
   await expect(page.locator('#menu-about')).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(page.locator('#menu-settings')).toBeFocused();
+
+  await page.locator('#menu-about').click();
+  await expect(page.locator('#about-lead')).toContainText('Virga');
+  await expect(page.locator('#about-lead')).toContainText('AI bot team');
+  await expect(page.locator('#about-lead')).toContainText('$0');
+  await expect(page.locator('.credits')).toContainText('three.js');
+  await expect(page.locator('.credits')).toContainText('og.png');
+  await page.getByRole('button', { name: 'Back' }).click();
 
   const planted = await page.evaluate(() => window.__plantGhost({
     score: 8000,
@@ -161,6 +186,19 @@ test('flight journey: start, fly, ring, pause, settings, ghost, results', async 
   await expect(page.locator('#results-score')).not.toHaveText('');
   await expect(page.locator('#results-gates')).toContainText('/');
   await expect(page.locator('#fly-again')).toBeFocused();
+  const share = page.locator('#share-result');
+  await expect(share).toBeVisible();
+  await expect(share).toHaveText('Share result');
+  await share.click();
+  await expect(page.locator('#share-status')).toHaveText('Copied');
+  const summary = await share.getAttribute('data-summary');
+  expect(summary).toContain('Virga — daily route 2026-06-15');
+  expect(summary).toMatch(/Score \d+/);
+  expect(summary).toContain('Gates');
+  if (testInfo.project.name === 'chromium' || testInfo.project.name === 'mobile-chrome') {
+    const clip = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clip).toBe(summary);
+  }
 
   await page.locator('#fly-again').click();
   await expect(page.locator('#results')).toBeHidden();

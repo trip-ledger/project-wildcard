@@ -1,11 +1,12 @@
 {
-  "name": "untitled",
+  "name": "virga",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/share-card.mjs && vite build",
+    "capture:demo": "node scripts/capture-demo.mjs",
     "preview": "vite preview",
     "test": "node --test tests/ghost.test.mjs",
     "test:budget": "node tests/bundle-budget.mjs",
