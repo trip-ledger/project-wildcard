@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { yieldThread } from './yield.js';
 
 // Hand-placed so the spawn view looks down a short chain of land, then a
 // larger coast. Shapes are elliptical domes warped by value noise.
@@ -194,7 +195,7 @@ function appendIsland(island, positions, colors, indices, scratch) {
   }
 }
 
-export function createTerrain() {
+export async function createTerrain() {
   grids.length = 0;
   const positions = [];
   const colors = [];
@@ -203,12 +204,14 @@ export function createTerrain() {
 
   for (let i = 0; i < ISLANDS.length; i += 1) {
     appendIsland(ISLANDS[i], positions, colors, indices, scratch);
+    await yieldThread();
   }
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geometry.setIndex(indices);
+  await yieldThread();
   geometry.computeVertexNormals();
 
   const material = new THREE.MeshLambertMaterial({

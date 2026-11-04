@@ -48,6 +48,7 @@ export function createAdaptive({
   let resolutionScale = 1;
   let shadowAllowed = true;
   let cloudScale = 1;
+  let interactive = false;
   let width = window.innerWidth;
   let height = Math.max(window.innerHeight, 1);
   let samples = [];
@@ -74,13 +75,16 @@ export function createAdaptive({
   function pixelRatio() {
     const cap = preset();
     let ratio = Math.min(window.devicePixelRatio || 1, cap.maxDpr) * resolutionScale;
+    // The menu still is a full-screen view behind a card. Cap it at 1x so the
+    // first paint stays a short task on a phone-sized, high-DPI lab run.
+    if (!interactive) ratio = Math.min(ratio, 1);
     const pixels = width * height * ratio * ratio;
     if (pixels > cap.pixelBudget) ratio *= Math.sqrt(cap.pixelBudget / pixels);
     return Math.max(0.45, ratio);
   }
 
   function applyShadow() {
-    const enabled = preset().shadow && shadowAllowed;
+    const enabled = interactive && preset().shadow && shadowAllowed;
     renderer.shadowMap.enabled = enabled;
     sunLight.castShadow = enabled;
     if (enabled) sunLight.shadow.camera.updateProjectionMatrix();
@@ -170,6 +174,13 @@ export function createAdaptive({
     resize,
     note,
     placeShadow,
+    setInteractive(next) {
+      const value = Boolean(next);
+      if (value === interactive) return;
+      interactive = value;
+      applyShadow();
+      resize();
+    },
     glow() {
       return preset().glow;
     },

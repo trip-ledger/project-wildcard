@@ -17,6 +17,7 @@ import { createSettings } from './settings.js';
 import { createSky, updateSky } from './sky.js';
 import { createTerrain } from './terrain.js';
 import { GAME_TITLE } from './title.js';
+import { yieldThread } from './yield.js';
 
 const FOG_COLOR = new THREE.Color(0xd2b39a);
 const FOG_DENSITY = 0.00028;
@@ -24,6 +25,8 @@ const FOG_DENSITY = 0.00028;
 const phone = detectPhone();
 const settings = createSettings({ defaultQuality: phone ? 'low' : 'high' });
 document.title = GAME_TITLE;
+
+await yieldThread();
 
 const app = document.querySelector('#app');
 const renderer = new THREE.WebGLRenderer({
@@ -35,6 +38,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
 renderer.domElement.tabIndex = -1;
 renderer.domElement.setAttribute('aria-hidden', 'true');
+renderer.domElement.style.visibility = 'hidden';
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -49,12 +53,18 @@ ocean.mesh.renderOrder = 0;
 scene.add(ocean.mesh);
 ocean.material.uniforms.sunDirection.value.copy(sky.sunDirection);
 
-const terrain = createTerrain();
+await yieldThread();
+
+const terrain = await createTerrain();
 scene.add(terrain.mesh);
+
+await yieldThread();
 
 const clouds = createClouds(FOG_COLOR, FOG_DENSITY);
 clouds.material.uniforms.sunDirection.value.copy(sky.sunDirection);
 scene.add(clouds.mesh);
+
+await yieldThread();
 
 scene.add(new THREE.HemisphereLight(0xf3c7a2, 0x1a3d4e, 0.9));
 scene.add(new THREE.AmbientLight(0xfff2e6, 0.34));
@@ -63,6 +73,8 @@ const sunLight = new THREE.DirectionalLight(0xffc288, 3.6);
 sunLight.position.copy(sky.sunDirection).multiplyScalar(100);
 scene.add(sunLight);
 scene.add(sunLight.target);
+
+await yieldThread();
 
 const jet = createJet();
 jet.traverse((obj) => {
@@ -83,6 +95,7 @@ const dateKey = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
   ? dateParam
   : localDateKey(new Date());
 const route = buildRoute(dateKey, terrain.heightAt);
+await yieldThread();
 const gates = createGates(route);
 scene.add(gates.group);
 
@@ -107,6 +120,8 @@ const audio = createAudio({
 let mode = 'title';
 let crashUntil = 0;
 let raf = 0;
+let loopReady = false;
+let inFrame = false;
 
 const adaptive = createAdaptive({
   renderer,
@@ -177,6 +192,7 @@ function setMode(next) {
     renderer.domElement.focus({ preventScroll: true });
   }
   syncGhost();
+  if (loopReady && !inFrame) present();
 }
 
 function playFromMenu() {
@@ -276,6 +292,7 @@ settings.subscribe((_snapshot, key) => {
   if (key === 'muted' && !settings.muted) audio.start();
   if (key === 'quality') adaptive.reset();
   if (key === 'ghost') syncGhost();
+  if (loopReady && !inFrame && mode !== 'playing' && mode !== 'crashed') drawStill();
 });
 
 function resize() {
@@ -286,7 +303,10 @@ function resize() {
   adaptive.resize(width, height);
 }
 
-window.addEventListener('resize', resize);
+window.addEventListener('resize', () => {
+  resize();
+  if (loopReady && !inFrame && mode !== 'playing' && mode !== 'crashed') drawStill();
+});
 resize();
 adaptive.reset();
 placeAircraft();
@@ -503,94 +523,154 @@ if (debugOn) {
 }
 
 let last = performance.now();
+let menuPoll = 0;
 
-function frame(now) {
-  if (document.hidden) {
-    raf = 0;
-    return;
-  }
-  raf = requestAnimationFrame(frame);
-  const elapsed = (now - last) / 1000;
-  last = now;
-  const dt = Math.min(Math.max(elapsed, 0), 0.05);
-
-  const pad = menu.poll();
-  if (pad.startEdge && mode === 'playing') openPause();
-
-  if (mode === 'playing') {
-    input.update();
-    flight.update(input.state, dt);
-    if (flight.crashed) onCrash(now);
-  }
-
-  if (mode === 'playing') {
-    const outcome = session.update(flight, now, dt, prevPosition);
-    if (outcome.chime) audio.chime();
-    if (outcome.finished) {
-      ghostRecorder.sample(flightPose(), 0, true);
-      ghostStore.save(outcome.result.score, ghostRecorder.snapshot());
-      hud.showResults(outcome.result);
-      setMode('results');
-    } else {
-      prevPosition.copy(flight.position);
-    }
-  }
-
-  if (mode === 'playing') {
-    ghostRecorder.sample(flightPose(), dt);
-    ghostTime += dt;
-  }
-  syncGhost();
-
-  const simulate = mode === 'playing' || mode === 'crashed';
-  if (simulate) {
-    jet.position.copy(flight.position);
-    jet.quaternion.copy(flight.quaternion);
-    updateChaseCamera(chase, flight, dt, {
-      reduced: settings.reducedMotion,
-      crash: mode === 'crashed' ? 1 : 0,
-      now,
-    });
-    liftCameraAboveTerrain(chase.camera, flight.position, chase.lookCurrent, terrain.meshHeightAt);
-    if (mode === 'playing') input.syncThrottle(flight.throttle);
-    hud.update(flight, session.view(now));
-    audio.update(flight);
-  }
-
-  if (mode === 'crashed' && now >= crashUntil) finishCrash();
-
-  const glow = glowAmount();
-  sky.material.uniforms.glow.value = glow;
-  updateSky(sky, chase.camera);
-  ocean.mesh.position.x = flight.position.x;
-  ocean.mesh.position.z = flight.position.z;
-  ocean.material.uniforms.time.value = now * 0.001;
-  sky.material.uniforms.time.value = now * 0.001;
-  updateClouds(clouds, chase.camera, now * 0.001);
-  updateGates(gates, session, now, { reducedMotion: settings.reducedMotion, glow });
-  adaptive.placeShadow(flight.position);
-
-  const renderStart = performance.now();
-  renderer.render(scene, chase.camera);
-  adaptive.note(elapsed, (performance.now() - renderStart) / 1000);
+function inFlight() {
+  return mode === 'playing' || mode === 'crashed';
 }
 
-function startLoop() {
+function stopMenuPoll() {
+  if (!menuPoll) return;
+  clearTimeout(menuPoll);
+  menuPoll = 0;
+}
+
+function ensureMenuPoll() {
+  if (menuPoll || document.hidden || inFlight()) return;
+  menuPoll = window.setTimeout(pollMenu, 50);
+}
+
+function pollMenu() {
+  menuPoll = 0;
+  if (document.hidden || inFlight()) return;
+  const pad = menu.poll();
+  if (pad.startEdge && mode === 'playing') openPause();
+  ensureMenuPoll();
+}
+
+function stepScene(now, dt, noteElapsed = null) {
+  inFrame = true;
+  const stepStart = performance.now();
+  try {
+    const pad = menu.poll();
+    if (pad.startEdge && mode === 'playing') openPause();
+
+    if (mode === 'playing') {
+      input.update();
+      flight.update(input.state, dt);
+      if (flight.crashed) onCrash(now);
+    }
+
+    if (mode === 'playing') {
+      const outcome = session.update(flight, now, dt, prevPosition);
+      if (outcome.chime) audio.chime();
+      if (outcome.finished) {
+        ghostRecorder.sample(flightPose(), 0, true);
+        ghostStore.save(outcome.result.score, ghostRecorder.snapshot());
+        hud.showResults(outcome.result);
+        setMode('results');
+      } else {
+        prevPosition.copy(flight.position);
+      }
+    }
+
+    if (mode === 'playing') {
+      ghostRecorder.sample(flightPose(), dt);
+      ghostTime += dt;
+    }
+    syncGhost();
+
+    const simulate = mode === 'playing' || mode === 'crashed';
+    if (simulate) {
+      jet.position.copy(flight.position);
+      jet.quaternion.copy(flight.quaternion);
+      updateChaseCamera(chase, flight, dt, {
+        reduced: settings.reducedMotion,
+        crash: mode === 'crashed' ? 1 : 0,
+        now,
+      });
+      liftCameraAboveTerrain(chase.camera, flight.position, chase.lookCurrent, terrain.meshHeightAt);
+      if (mode === 'playing') input.syncThrottle(flight.throttle);
+      hud.update(flight, session.view(now));
+      audio.update(flight);
+    }
+
+    if (mode === 'crashed' && now >= crashUntil) finishCrash();
+
+    const glow = glowAmount();
+    sky.material.uniforms.glow.value = glow;
+    updateSky(sky, chase.camera);
+    ocean.mesh.position.x = flight.position.x;
+    ocean.mesh.position.z = flight.position.z;
+    ocean.material.uniforms.time.value = now * 0.001;
+    sky.material.uniforms.time.value = now * 0.001;
+    updateClouds(clouds, chase.camera, now * 0.001);
+    updateGates(gates, session, now, { reducedMotion: settings.reducedMotion, glow });
+    adaptive.setInteractive(mode === 'playing' || mode === 'crashed');
+    adaptive.placeShadow(flight.position);
+
+    const renderStart = performance.now();
+    renderer.render(scene, chase.camera);
+    const renderMs = performance.now() - renderStart;
+    if (noteElapsed != null) adaptive.note(noteElapsed, renderMs / 1000);
+    return performance.now() - stepStart;
+  } finally {
+    inFrame = false;
+  }
+}
+
+// Menus paint one still. A full-rate loop here keeps the main thread busy
+// for the whole visit and fails a lab performance run on software GL.
+function frame(now) {
+  raf = 0;
   if (document.hidden) return;
-  last = performance.now();
+  const elapsed = Math.max(0, (now - last) / 1000);
+  last = now;
+  const renderMs = stepScene(now, Math.min(elapsed, 0.05), elapsed);
+  if (inFlight() && !document.hidden) {
+    raf = requestAnimationFrame(frame);
+    return;
+  }
+  ensureMenuPoll();
+}
+
+function drawStill() {
+  if (document.hidden || inFlight()) return;
   cancelAnimationFrame(raf);
-  raf = requestAnimationFrame(frame);
+  raf = 0;
+  const now = performance.now();
+  last = now;
+  stepScene(now, 0);
+}
+
+function present() {
+  if (inFlight()) {
+    stopMenuPoll();
+    if (!raf && !document.hidden) {
+      last = performance.now();
+      raf = requestAnimationFrame(frame);
+    }
+    return;
+  }
+  cancelAnimationFrame(raf);
+  raf = 0;
+  ensureMenuPoll();
+  drawStill();
 }
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     cancelAnimationFrame(raf);
     raf = 0;
+    stopMenuPoll();
     audio.suspendForHide();
     return;
   }
   audio.resumeFromHide();
-  startLoop();
+  if (loopReady) present();
 });
 
-startLoop();
+renderer.domElement.style.visibility = '';
+loopReady = true;
+present();
+if (mode === 'title') document.querySelector('#menu-play')?.focus();

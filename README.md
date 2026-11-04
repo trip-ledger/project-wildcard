@@ -62,13 +62,13 @@ Flight is an arcade approximation: thrust, drag, gravity, and a lift term that h
 
 Island height for the aircraft and the camera is sampled from the triangles that are actually drawn. Hitting that ground crashes the flight, shows a short message, and resets today's route. The camera is lifted so it does not sit inside the terrain. Over open water the aircraft still rides a few metres above the waves.
 
-The view starts at the display resolution, capped by the graphics setting (about 720p on Low, 1080p on High). Phones aim at about 30fps and desktops at about 60. If frames stay slow, it steps the pixel ratio down, then turns shadows off, then thins the clouds. Shadows are part of the High setting. Rendering pauses while the tab is hidden.
+The view starts at the display resolution, capped by the graphics setting (about 720p on Low, 1080p on High). Phones aim at about 30fps and desktops at about 60. If frames stay slow, it steps the pixel ratio down, then turns shadows off, then thins the clouds. Shadows are part of the High setting. Rendering pauses while the tab is hidden. The title screen, pause menu, and results card paint one still frame instead of animating, so an idle menu does not keep the GPU busy. That still is drawn at no more than 1× and without shadows. Shadows and the full pixel ratio come back when the flight starts, including the short moment after a terrain hit.
 
 The page title is the placeholder `Untitled`.
 
 ## Test
 
-Node 22 or newer. The smoke test builds nothing by itself; run the build first. It serves `dist/` and drives headless Chromium (software WebGL is enough).
+Node 22 or newer. The browser tests build nothing by themselves; run the build first. They serve `dist/` and drive Chromium, Firefox, and WebKit, plus a Pixel 5-sized Chromium project with touch. Software WebGL is enough.
 
 ```bash
 npm test
@@ -77,4 +77,21 @@ npm run test:budget
 npm run test:smoke
 ```
 
-`npm test` checks the ghost recording format. `npm run test:budget` fails if the built JavaScript exceeds the byte budget in `tests/bundle-budget.mjs`. The smoke test loads the title screen with no console errors, flies for a few seconds, checks that the HUD moves, opens and closes the pause menu, checks a phone-sized viewport for the touch controls, and checks the ghost jet. It logs a frame-time sample. That sample fails the run only if frames stall.
+`npm test` checks the ghost recording format. `npm run test:budget` fails if the built JavaScript exceeds the byte budget in `tests/bundle-budget.mjs`.
+
+`npm run test:smoke` runs one journey on each browser: title focus order, about ten seconds of flight, the opening ring, pause and resume, mute, reduced motion, the ghost toggle, and the results card. Chromium also replays a saved ghost and checks that a finished run becomes the next ghost. A frame-time sample is logged while flying. That sample fails the run only if frames stall. One worker is used so the browsers are not all rendering at once.
+
+Run a single project with `npx playwright test --project=firefox` (or `chromium`, `webkit`, `mobile-chrome`).
+
+Firefox does not ship a software WebGL fallback of its own. On a machine with no GPU, install Mesa's software driver (`libgl1` and `libgl1-mesa-dri`). The Firefox project sets `LIBGL_ALWAYS_SOFTWARE=1`. CI does that install. Chromium uses SwiftShader instead.
+
+## Lighthouse
+
+`npm run test:lighthouse` builds nothing and does not start from `npm run dev`. Build first, then run it. The script serves `dist/` with `vite preview` and runs Lighthouse 12 against that origin, once for desktop and once for mobile, in headless Chrome with software WebGL (SwiftShader). It prints Performance, Accessibility, and Best Practices. The same checks can be started by hand from GitHub Actions: the `lighthouse` workflow is `workflow_dispatch` only, so pull requests do not wait on it.
+
+```bash
+npm run build
+npm run test:lighthouse
+```
+
+`CHROME_PATH` can point at a Chrome or Chromium binary. When it is unset, the script uses `google-chrome` on `PATH`, then a Playwright Chromium build if one is installed.

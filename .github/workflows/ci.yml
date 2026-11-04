@@ -20,8 +20,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      # Firefox has no bundled SwiftShader. GitHub's runner has no GPU, so
+      # WebGL needs Mesa's software rasterizer or the context never comes up.
+      - name: Install software OpenGL
+        run: sudo apt-get update && sudo apt-get install -y libgl1 libgl1-mesa-dri
 
       - name: Build
         run: npm run build
@@ -33,7 +38,13 @@ jobs:
         run: npm run test:budget
 
       - name: Smoke test
-        run: npm run test:smoke
+        run: xvfb-run -a --server-args="-screen 0 1280x720x24" npm run test:smoke
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          GALLIUM_DRIVER: llvmpipe
+          EGL_PLATFORM: surfaceless
+          MOZ_DISABLE_CONTENT_SANDBOX: "1"
+          MOZ_DISABLE_GPU_SANDBOX: "1"
 
       - name: Upload smoke failure
         if: failure()
