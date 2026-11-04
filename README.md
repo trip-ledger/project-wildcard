@@ -32,7 +32,7 @@ npm run preview
 | M | Mute or unmute |
 | Esc / P | Pause |
 
-The title screen is Play, Today's Route, Controls, Settings, and About. About shows `CREDITS.md`. Settings cover mute, volume, graphics quality (Low, Medium, High), invert pitch, and reduced motion. Reduced motion follows the system setting until you choose otherwise, and it tones down camera shake and the sun/ring glow.
+The title screen is Play, Today's Route, Controls, Settings, and About. About shows `CREDITS.md`. Settings cover mute, volume, graphics quality (Low, Medium, High), invert pitch, reduced motion, and the ghost jet. Reduced motion follows the system setting until you choose otherwise, and it tones down camera shake and the sun/ring glow.
 
 On a phone, or any window narrower than about 820px, a stick on the left pitches and rolls, and the slider on the right sets throttle. Keyboard still works beside those controls. A standard gamepad maps the left stick to pitch and roll, the right stick and bumpers to yaw, and the triggers to throttle. Start pauses. In a menu, the D-pad or left stick moves, A activates, and B goes back.
 
@@ -50,9 +50,11 @@ The clock starts when the first ring is resolved. It pauses while the pause menu
 
 The page does not talk to a server. This browser keeps today's best and an all-time best in localStorage, along with the settings. Refresh starts over at the title screen; the course for that date stays put.
 
+Finishing a run stores a short recording when that score beats the ghost already saved for the route seed. The next attempt of the same route draws it as a pale translucent jet. Hide it from Settings. Samples are position and rotation about eight times a second, quantized, and capped so one route stays under about 16KB. This browser keeps two seeds. A best score from before recordings existed has no ghost until a run is finished.
+
 Sound is synthesized in the page: an engine hum that follows the throttle, wind that follows airspeed, a soft chime for a ring, and a short thud if you hit terrain. It stays silent until a click or a key press.
 
-`?date=YYYY-MM-DD` pins the course. `?complete=1` finishes it immediately. `?play=1` skips the title screen. `?debug=1` adds `window.__debug()` and `window.__selfTest()`.
+`?date=YYYY-MM-DD` pins the course. `?complete=1` finishes it immediately. `?play=1` skips the title screen. `?debug=1` adds `window.__debug()`, `window.__selfTest()`, and helpers that plant or save a ghost recording.
 
 ## Notes
 
@@ -63,3 +65,16 @@ Island height for the aircraft and the camera is sampled from the triangles that
 The view starts at the display resolution, capped by the graphics setting (about 720p on Low, 1080p on High). Phones aim at about 30fps and desktops at about 60. If frames stay slow, it steps the pixel ratio down, then turns shadows off, then thins the clouds. Shadows are part of the High setting. Rendering pauses while the tab is hidden.
 
 The page title is the placeholder `Untitled`.
+
+## Test
+
+Node 22 or newer. The smoke test builds nothing by itself; run the build first. It serves `dist/` and drives headless Chromium (software WebGL is enough).
+
+```bash
+npm test
+npm run build
+npm run test:budget
+npm run test:smoke
+```
+
+`npm test` checks the ghost recording format. `npm run test:budget` fails if the built JavaScript exceeds the byte budget in `tests/bundle-budget.mjs`. The smoke test loads the title screen with no console errors, flies for a few seconds, checks that the HUD moves, opens and closes the pause menu, checks a phone-sized viewport for the touch controls, and checks the ghost jet. It logs a frame-time sample. That sample fails the run only if frames stall.

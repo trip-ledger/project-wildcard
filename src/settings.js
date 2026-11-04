@@ -32,6 +32,7 @@ export function createSettings({ defaultQuality = 'high' } = {}) {
     qualitySaved: QUALITIES.has(saved.quality),
     invertPitch: saved.invertPitch === true,
     reducedMotion: MOTION.has(saved.reducedMotion) ? saved.reducedMotion : 'system',
+    showGhost: saved.showGhost !== false,
   };
 
   function persist() {
@@ -40,6 +41,7 @@ export function createSettings({ defaultQuality = 'high' } = {}) {
       volume: state.volume,
       invertPitch: state.invertPitch,
       reducedMotion: state.reducedMotion,
+      showGhost: state.showGhost,
     };
     if (state.qualitySaved) payload.quality = state.quality;
     try {
@@ -84,6 +86,9 @@ export function createSettings({ defaultQuality = 'high' } = {}) {
       if (state.reducedMotion === 'off') return false;
       return systemReducedMotion();
     },
+    get showGhost() {
+      return state.showGhost;
+    },
     setMuted(muted) {
       const next = Boolean(muted);
       if (next === state.muted) return;
@@ -118,6 +123,13 @@ export function createSettings({ defaultQuality = 'high' } = {}) {
       persist();
       emit('motion');
     },
+    setShowGhost(showGhost) {
+      const next = Boolean(showGhost);
+      if (next === state.showGhost) return;
+      state.showGhost = next;
+      persist();
+      emit('ghost');
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -130,6 +142,7 @@ export function createSettings({ defaultQuality = 'high' } = {}) {
         invertPitch: state.invertPitch,
         reducedMotionChoice: state.reducedMotion,
         reducedMotion: api.reducedMotion,
+        showGhost: state.showGhost,
       };
     },
   };

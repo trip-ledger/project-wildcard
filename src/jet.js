@@ -17,7 +17,37 @@ function mirror(mesh) {
   return copy;
 }
 
-export function createJet() {
+function paintGhost(jet) {
+  const seen = new Set();
+  const body = new THREE.Color(0xd7e7f4);
+  jet.name = 'ghost';
+  jet.traverse((obj) => {
+    if (!obj.isMesh) return;
+    obj.castShadow = false;
+    obj.receiveShadow = false;
+    obj.renderOrder = 2;
+    const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (let i = 0; i < materials.length; i += 1) {
+      const material = materials[i];
+      if (!material || seen.has(material)) continue;
+      seen.add(material);
+      material.transparent = true;
+      material.opacity = 0.42;
+      material.depthWrite = false;
+      if (material.isMeshStandardMaterial) {
+        material.color.copy(body);
+        material.emissive.set(0x6ea4c8);
+        material.emissiveIntensity = 0.5;
+        material.metalness = 0.04;
+        material.roughness = 0.45;
+      } else if (material.color) {
+        material.color.set(0xb7d4ea);
+      }
+    }
+  });
+}
+
+export function createJet({ ghost = false } = {}) {
   const jet = new THREE.Group();
   jet.name = 'aircraft';
 
@@ -131,5 +161,6 @@ export function createJet() {
   jet.add(lamp(0x3ecf73, 7.7, 0.25, 2.9));
   jet.add(lamp(0xf4f7fb, 0, 0.22, 6.25));
 
+  if (ghost) paintGhost(jet);
   return jet;
 }

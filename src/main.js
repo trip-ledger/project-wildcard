@@ -4,6 +4,7 @@ import { createChaseCamera, liftCameraAboveTerrain, updateChaseCamera } from './
 import { createClouds, updateClouds } from './clouds.js';
 import { FlightModel } from './flight.js';
 import { createGates, updateGates } from './gates.js';
+import { createGhostRecorder, createGhostStore, ghostPoseAt } from './ghost.js';
 import { createHud } from './hud.js';
 import { createInput } from './input.js';
 import { createJet } from './jet.js';
@@ -71,6 +72,11 @@ jet.traverse((obj) => {
 });
 scene.add(jet);
 
+const ghostJet = createJet({ ghost: true });
+ghostJet.visible = false;
+scene.add(ghostJet);
+const ghostEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
 const params = new URLSearchParams(location.search);
 const dateParam = params.get('date');
 const dateKey = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
@@ -82,6 +88,10 @@ scene.add(gates.group);
 
 const flight = new FlightModel(terrain.meshHeightAt);
 const prevPosition = new THREE.Vector3().copy(flight.position);
+const ghostStore = createGhostStore({ seed: route.seedHex });
+const ghostRecorder = createGhostRecorder();
+let ghostTime = 0;
+let ghostRecord = null;
 const chase = createChaseCamera(window.innerWidth / Math.max(window.innerHeight, 1));
 const input = createInput(() => ({ invertPitch: settings.invertPitch }));
 const session = createSession(route);
@@ -118,6 +128,42 @@ function glowAmount() {
   return adaptive.glow() * (settings.reducedMotion ? 0.28 : 1);
 }
 
+function flightPose() {
+  return {
+    x: flight.position.x,
+    y: flight.position.y,
+    z: flight.position.z,
+    pitch: flight.pitch,
+    yaw: flight.yaw,
+    roll: flight.roll,
+  };
+}
+
+function syncGhost() {
+  const show = Boolean(
+    settings.showGhost
+    && ghostRecord
+    && (mode === 'playing' || mode === 'paused' || mode === 'crashed'),
+  );
+  ghostJet.visible = show;
+  if (!show || !ghostRecord) return;
+  const pose = ghostPoseAt(ghostRecord, ghostTime);
+  if (!pose) {
+    ghostJet.visible = false;
+    return;
+  }
+  ghostJet.position.set(pose.x, pose.y, pose.z);
+  ghostEuler.set(pose.pitch, pose.yaw, -pose.roll);
+  ghostJet.quaternion.setFromEuler(ghostEuler);
+}
+
+function beginAttempt() {
+  ghostRecorder.reset();
+  ghostTime = 0;
+  ghostRecord = ghostStore.load();
+  syncGhost();
+}
+
 function setMode(next) {
   mode = next;
   input.setEnabled(next === 'playing');
@@ -130,6 +176,7 @@ function setMode(next) {
     session.resumeClock(performance.now());
     renderer.domElement.focus({ preventScroll: true });
   }
+  syncGhost();
 }
 
 function playFromMenu() {
@@ -141,6 +188,7 @@ function playFromMenu() {
   hud.hideCrash();
   audio.start();
   placeAircraft();
+  beginAttempt();
   setMode('playing');
 }
 
@@ -170,6 +218,7 @@ function flyAgain() {
   hud.hideResults();
   hud.hideCrash();
   placeAircraft();
+  beginAttempt();
   setMode('playing');
 }
 
@@ -190,6 +239,7 @@ function finishCrash() {
   chase.ready = false;
   hud.hideCrash();
   placeAircraft();
+  beginAttempt();
   setMode('playing');
 }
 
@@ -203,6 +253,7 @@ const menu = createMenu({
       gates: route.gates.length,
       bestToday: view.bestToday,
       bestAll: view.bestAll,
+      ghost: ghostStore.load() ? (settings.showGhost ? 'Saved' : 'Hidden') : 'None',
     };
   },
   onPlay: playFromMenu,
@@ -224,6 +275,7 @@ settings.subscribe((_snapshot, key) => {
   audio.sync();
   if (key === 'muted' && !settings.muted) audio.start();
   if (key === 'quality') adaptive.reset();
+  if (key === 'ghost') syncGhost();
 });
 
 function resize() {
@@ -259,6 +311,7 @@ if (params.get('complete') === '1') {
   });
   setMode('results');
 } else if (params.get('play') === '1') {
+  beginAttempt();
   setMode('playing');
 } else {
   setMode('title');
@@ -411,7 +464,42 @@ if (debugOn) {
     audio: audio.debug(),
     settings: settings.snapshot(),
     quality: adaptive.stats(),
+    ghost: {
+      visible: ghostJet.visible,
+      show: settings.showGhost,
+      time: ghostTime,
+      recording: ghostRecorder.count,
+      samples: ghostRecord ? ghostRecord.samples.length : 0,
+      score: ghostRecord ? ghostRecord.score : null,
+      x: ghostJet.position.x,
+      y: ghostJet.position.y,
+      z: ghostJet.position.z,
+    },
   });
+
+  window.__plantGhost = ({ score = 1, interval, samples } = {}) => {
+    const wrote = ghostStore.write(score, samples, interval);
+    ghostRecord = ghostStore.load();
+    ghostTime = 0;
+    syncGhost();
+    return {
+      wrote,
+      score: ghostRecord ? ghostRecord.score : null,
+      samples: ghostRecord ? ghostRecord.samples.length : 0,
+    };
+  };
+
+  window.__commitGhost = (score = 1) => {
+    ghostRecorder.sample(flightPose(), 0, true);
+    const saved = ghostStore.save(score, ghostRecorder.snapshot());
+    const stored = ghostStore.load();
+    return {
+      saved,
+      recording: ghostRecorder.count,
+      samples: stored ? stored.samples.length : 0,
+      score: stored ? stored.score : null,
+    };
+  };
 }
 
 let last = performance.now();
@@ -439,12 +527,20 @@ function frame(now) {
     const outcome = session.update(flight, now, dt, prevPosition);
     if (outcome.chime) audio.chime();
     if (outcome.finished) {
+      ghostRecorder.sample(flightPose(), 0, true);
+      ghostStore.save(outcome.result.score, ghostRecorder.snapshot());
       hud.showResults(outcome.result);
       setMode('results');
     } else {
       prevPosition.copy(flight.position);
     }
   }
+
+  if (mode === 'playing') {
+    ghostRecorder.sample(flightPose(), dt);
+    ghostTime += dt;
+  }
+  syncGhost();
 
   const simulate = mode === 'playing' || mode === 'crashed';
   if (simulate) {
